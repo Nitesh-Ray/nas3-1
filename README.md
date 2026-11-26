@@ -1,75 +1,68 @@
-# React + TypeScript + Vite
+# NAS Insights
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+India ke **National Accounts Statistics** (GDP, GVA, sectors) ka full-stack dashboard: CSV → ETL → SQLite → FastAPI → React, aur Prophet se quarterly GDP forecast.
 
 ```
-
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+CSV ──► ETL (clean, dedupe, anomaly flag, audit) ──► SQLite
+                                                       │
+                          FastAPI (REST + Prophet) ◄───┘
+                                  │  /api (Vite proxy)
+                          React + Recharts dashboard
 ```
+
+## Stack
+- **Backend:** Python 3.14, FastAPI, SQLAlchemy 2, pandas, Prophet, uv
+- **Frontend:** React 19, TypeScript, Vite, Tailwind v4, React Query, Recharts, React Router
+- **Tests:** pytest (backend), Vitest (frontend)
+
+## Setup
+
+```powershell
+# Backend (backend/ folder)
+cd backend
+uv sync
+uv run python -m etl.ingest                    # CSV -> DB (+ Prophet train)
+uv run uvicorn main:app --reload --port 8000   # http://localhost:8000/docs
+
+# Frontend (project root, naye terminal me)
+npm install
+npm run dev                                    # http://localhost:5173
+```
+
+Zero se dobara: `backend/nas_data.db` delete karo aur ingest chalao.
+Ingest "already ingested" bole to model manually train karo: `POST /api/forecast/train`.
+
+## Tests
+```powershell
+cd backend ; uv add --dev pytest httpx ; uv run pytest   # ek baar `uv add`, phir sirf pytest
+cd .. ; npm install -D vitest ; npm test
+```
+
+## API
+| Endpoint | Kaam |
+|---|---|
+| `GET /health` | server, DB aur model status |
+| `GET /api/data/status` | latest ingestion run |
+| `GET /api/data/all` | data + provenance (`?indicator=&frequency=&base_year=`) |
+| `GET /api/anomalies/` | flagged rows (`limit`, `offset`) |
+| `POST /api/anomalies/{id}/approve` · `/reject` | review (reject = soft delete) |
+| `GET /api/forecast/gdp?periods=4` | Prophet forecast + confidence band |
+| `GET /api/forecast/history` · `/backtest` · `/status` | training data, backtest (MAE/RMSE/MAPE), model info |
+| `POST /api/forecast/train` | model dobara train |
+
+## Design decisions
+- **Idempotent ingestion:** file ka SHA-256; same file dobara = skip.
+- **Provenance:** har data row `source_run_id` se audit log tak trace hoti hai.
+- **Anomalies flag hoti hain, delete nahi:** IQR rule, har series ke andar. Review ke baad approve ya soft-reject.
+- **Missing = NULL, 0 nahi.** Frontend `null` ko `—` dikhata hai.
+- **Forecast:** quarterly GDP, constant prices (base 2011-12), fiscal quarters (Q1 = Apr–Jun).
+
+## Structure
+```
+backend/  main.py · api/routes · db · etl · ml · tests
+src/      pages · components (+charts) · hooks · lib (api-client, data-utils, types)
+data/     Merged_Annually_Quarterly.csv
+```
+
+## Aage kya ho sakta hai
+Production build ko FastAPI se serve karna, Docker, GraphQL live feed, sector drill-down page, Prophet me holidays/regressors.
