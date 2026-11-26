@@ -126,3 +126,87 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
   if (value == null || Number.isNaN(value)) return '—'
   return `${value > 0 ? '+' : ''}${value.toFixed(digits)}%`
 }
+
+/* ---------- Sectors ---------- */
+
+// "Total ..." jaisi aggregate rows sector nahi hoti
+export const isSector = (name: string | null): name is string => !!name && !/\btotal\b/i.test(name)
+
+export interface SectorGrowth {
+  industry: string
+  value: number
+  growth: number | null // latest saal ka YoY %
+}
+
+/** Har sector ki latest value + YoY growth (sab sectors ka common latest saal). */
+export function sectorGrowth(
+  rows: NasRow[],
+  key: ValueKey,
+): { year: number | null; items: SectorGrowth[] } {
+  const byIndustry = new Map<string, NasRow[]>()
+  for (const r of rows) {
+    if (!isSector(r.industry)) continue
+    const arr = byIndustry.get(r.industry) ?? []
+    arr.push(r)
+    byIndustry.set(r.industry, arr)
+  }
+  const latest = [...byIndustry.entries()].flatMap(([industry, rs]) => {
+    const last = yoyGrowth(annualSeries(rs, key)).at(-1)
+    return last ? [{ industry, year: last.year, value: last.value, growth: last.growth }] : []
+  })
+  const year = latest.length ? Math.max(...latest.map((l) => l.year)) : null
+  return {
+    year,
+    items: latest
+      .filter((l) => l.year === year)
+      .map(({ industry, value, growth }) => ({ industry, value, growth })),
+  }
+}
+
+export type YearRow = Record<string, number | string>
+
+/** Stacked chart ke liye: har saal ek row, har sector ek column. */
+export function sectorMatrix(rows: NasRow[], industries: string[], key: ValueKey): YearRow[] {
+  const out = new Map<number, YearRow>()
+  for (const ind of industries) {
+    for (const p of annualSeries(rows.filter((r) => r.industry === ind), key)) {
+      const row = out.get(p.year) ?? { year: p.year, label: p.label }
+      row[ind] = p.value
+      out.set(p.year, row)
+    }
+  }
+  return [...out.values()].sort((a, b) => Number(a.year) - Number(b.year))
+}
+
+/* ---------- Seasonality ---------- */
+
+export interface SeasonPoint {
+  quarter: string // Q1..Q4
+  deviation: number // % jitna quarter apne saal ke average se upar (+) / neeche (-) rehta hai
+}
+
+/** Simple seasonal index: (quarter / us saal ka quarterly average) ka sab saalon par average. */
+export function seasonalIndex(points: QuarterPoint[]): SeasonPoint[] {
+  const byYear = new Map<number, QuarterPoint[]>()
+  for (const p of points) {
+    const arr = byYear.get(p.year) ?? []
+    arr.push(p)
+    byYear.set(p.year, arr)
+  }
+  const acc = new Map<string, number[]>()
+  for (const qs of byYear.values()) {
+    if (qs.length !== 4) continue // adhoora saal chhod do
+    const mean = qs.reduce((s, q) => s + q.value, 0) / 4
+    for (const q of qs) {
+      const arr = acc.get(q.quarter) ?? []
+      arr.push((q.value / mean - 1) * 100)
+      acc.set(q.quarter, arr)
+    }
+  }
+  return ['Q1', 'Q2', 'Q3', 'Q4']
+    .filter((q) => acc.has(q))
+    .map((q) => {
+      const v = acc.get(q) as number[]
+      return { quarter: q, deviation: v.reduce((s, x) => s + x, 0) / v.length }
+    })
+}
