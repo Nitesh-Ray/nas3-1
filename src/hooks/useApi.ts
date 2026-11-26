@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../lib/api-client'
 import type { DataFilters } from '../lib/types'
 
@@ -27,3 +27,16 @@ export const useBacktest = (testYear?: number) =>
 
 export const useAnomalies = (limit = 50, offset = 0) =>
   useQuery({ queryKey: ['anomalies', limit, offset], queryFn: () => api.anomalies(limit, offset) })
+
+// Approve / reject ke baad anomalies aur data dono refresh
+export function useReview() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, action }: { id: number; action: 'approve' | 'reject' }) =>
+      action === 'approve' ? api.approve(id) : api.reject(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['anomalies'] })
+      void qc.invalidateQueries({ queryKey: ['allData'] })
+    },
+  })
+}
