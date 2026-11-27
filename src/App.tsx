@@ -3,6 +3,7 @@ import AppLayout from './components/AppLayout'
 import Dashboard from './pages/Dashboard'
 import Home from './pages/Home'
 import Sectors from './pages/Sectors'
+import SectorDetail from './pages/SectorDetail'
 import Seasonality from './pages/Seasonality'
 
 export default function App() {
@@ -12,6 +13,7 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="sectors" element={<Sectors />} />
+        <Route path="sectors/:name" element={<SectorDetail />} />
         <Route path="seasonality" element={<Seasonality />} />
       </Route>
     </Routes>

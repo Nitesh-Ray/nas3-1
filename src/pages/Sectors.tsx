@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import Card from '../components/Card'
 import StackedSectorChart from '../components/charts/StackedSectorChart'
 import QueryState from '../components/QueryState'
@@ -10,7 +11,12 @@ const BASE = '2011-12'
 function Mover({ industry, growth }: { industry: string; growth: number | null }) {
   return (
     <li className="flex justify-between gap-4 border-b border-line/30 py-1 text-sm">
-      <span>{industry}</span>
+      <Link
+        to={`/sectors/${encodeURIComponent(industry)}`}
+        className="underline decoration-2 hover:bg-volt hover:text-black"
+      >
+        {industry}
+      </Link>
       <span className={`font-mono ${(growth ?? 0) >= 0 ? 'text-credit' : 'text-debit'}`}>
         {formatPercent(growth)}
       </span>
@@ -70,7 +76,14 @@ export default function Sectors() {
                 <tbody>
                   {view.bySize.map((s) => (
                     <tr key={s.industry} className="border-t border-line/30">
-                      <td className="p-2">{s.industry}</td>
+                      <td className="p-2">
+                        <Link
+                          to={`/sectors/${encodeURIComponent(s.industry)}`}
+                          className="underline decoration-2 hover:bg-volt hover:text-black"
+                        >
+                          {s.industry}
+                        </Link>
+                      </td>
                       <td className="p-2 text-right whitespace-nowrap">{formatCrore(s.value)}</td>
                       <td className={`p-2 text-right ${(s.growth ?? 0) >= 0 ? 'text-credit' : 'text-debit'}`}>
                         {formatPercent(s.growth)}
