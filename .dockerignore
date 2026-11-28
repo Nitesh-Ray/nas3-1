@@ -1,0 +1,10 @@
+.git
+node_modules
+dist
+**/__pycache__
+**/.pytest_cache
+
+# Local Windows venv image me nahi jaana chahiye (warna container ka venv overwrite ho jata hai)
+backend/.venv
+backend/nas_data.db
+backend/models

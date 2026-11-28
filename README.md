@@ -64,5 +64,20 @@ src/      pages · components (+charts) · hooks · lib (api-client, data-utils,
 data/     Merged_Annually_Quarterly.csv
 ```
 
+## Production: ek server par poora app
+
+```powershell
+npm run build                                  # dist/ banta hai
+cd backend ; uv run uvicorn main:app --port 8000   # http://localhost:8000 par frontend + API dono
+```
+`dist/` mil jaye to FastAPI use serve karta hai (refresh par `/sectors/Mining` jaise URL bhi chalte hain).
+
+### Docker
+```powershell
+docker build -t nas-insights .
+docker run -p 8000:8000 nas-insights           # http://localhost:8000
+```
+Build ke waqt hi CSV ingest hota hai aur Prophet train hota hai, to container turant ready hota hai. Data badla to image dobara build karo.
+
 ## Aage kya ho sakta hai
-Production build ko FastAPI se serve karna, Docker, GraphQL live feed, sector drill-down page, Prophet me holidays/regressors.
+GraphQL live feed, Prophet me holidays/regressors, Postgres.

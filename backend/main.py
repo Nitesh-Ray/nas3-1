@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from api.routes import anomalies, data, forecast
@@ -17,7 +20,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="NAS API", lifespan=lifespan)
 
-# Vite dev server (bun run dev) ko API call karne do
+# Vite dev server (npm run dev) ko API call karne do. Production me same origin hai, CORS ki zaroorat nahi.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -28,12 +31,6 @@ app.add_middleware(
 app.include_router(data.router, prefix="/api/data", tags=["data"])
 app.include_router(anomalies.router, prefix="/api/anomalies", tags=["anomalies"])
 app.include_router(forecast.router, prefix="/api/forecast", tags=["forecast"])
-
-
-
-@app.get("/")
-def root():
-    return {"message": "NAS API is running (SQLite)"}
 
 
 @app.get("/health")
@@ -50,3 +47,28 @@ def health():
     if meta:
         status["prophet_model"] = f"last_trained: {meta['last_trained']}"
     return status
+
+
+# ---- Production: React build (dist/) isi server se serve karo ----
+DIST = Path(__file__).resolve().parent.parent / "dist"
+
+if DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def spa(full_path: str):
+        # Galat /api/... path par index.html nahi, seedha 404
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        # Build ki asli file (favicon wagairah) ho to wahi do; path traversal se bachao
+        candidate = (DIST / full_path).resolve()
+        if candidate.is_file() and DIST.resolve() in candidate.parents:
+            return FileResponse(candidate)
+        # Baaki sab React Router ke liye: index.html (/sectors/Mining refresh par bhi chale)
+        return FileResponse(DIST / "index.html")
+
+else:
+
+    @app.get("/")
+    def root():
+        return {"message": "NAS API is running. Frontend ke liye `npm run build` chalao."}
